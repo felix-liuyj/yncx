@@ -3,3 +3,4 @@ shapely
 httpx
 tenacity
 gmssl
+geopandas
