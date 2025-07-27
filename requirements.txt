@@ -1,7 +1,5 @@
-Fiona
+fiona
+shapely
 httpx
-Shapely==1.8.1.post1
+tenacity
 gmssl
-
-
-jsbeautifier

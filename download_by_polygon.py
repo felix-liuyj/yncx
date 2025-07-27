@@ -4,7 +4,7 @@ import geopandas as gpd
 from shapely.geometry import box
 import numpy as np
 from geopy.distance import geodesic
-import download_by_rect
+import shp_rect_spider
 import json
 
 #传入多边形，按最大边界坐标切割为指定大小格网分别下载
