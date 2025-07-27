@@ -3,7 +3,7 @@ from pathlib import Path
 import geopandas as gpd
 
 # 1) 读取全国省级边界
-gdf = gpd.read_file("china_province_4490.shp")  # 文件名以实际为准
+gdf = gpd.read_file("province-epsg-4490/省.shp")  # 文件名以实际为准
 assert gdf.crs.to_epsg() == 4490, "坐标系不是 CGCS-2000!"
 
 # 2) 按字段 'NAME' 或 'PROVINCE' 切片
