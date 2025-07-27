@@ -4,3 +4,5 @@ httpx
 tenacity
 gmssl
 geopandas
+geopy
+numpy

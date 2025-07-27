@@ -15,25 +15,25 @@ pip install -r requirements.txt
 ### 基本用法
 
 ```bash
-python shp_rect_spider.py --x1 120.63954 --y1 32.43703 --x2 120.6456 --y2 32.43089 --output data.geojson
+python rect_spider.py --x1 120.63954 --y1 32.43703 --x2 120.6456 --y2 32.43089 --output data.geojson
 ```
 
 ### 同时输出为Shapefile格式
 
 ```bash
-python shp_rect_spider.py --x1 120.63954 --y1 32.43703 --x2 120.6456 --y2 32.43089 --output data.geojson --shp data.shp
+python rect_spider.py --x1 120.63954 --y1 32.43703 --x2 120.6456 --y2 32.43089 --output data.geojson --shp data.shp
 ```
 
 ### 调整批处理大小
 
 ```bash
-python shp_rect_spider.py --batch-size 200
+python rect_spider.py --batch-size 200
 ```
 
 ### 查看调试日志
 
 ```bash
-python shp_rect_spider.py --log-level DEBUG
+python rect_spider.py --log-level DEBUG
 ```
 
 ## 参数说明
