@@ -6,3 +6,4 @@ gmssl
 geopandas
 geopy
 numpy
+pyproj~=3.7.1
