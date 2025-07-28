@@ -16,6 +16,8 @@ import geopandas as gpd
 from fiona.crs import from_epsg
 from gmssl import sm2
 from httpx import HTTPError, AsyncClient, Proxy, Timeout, Limits
+from pyproj import Geod
+from redis.asyncio.client import Redis
 from shapely.geometry import Polygon
 from shapely.geometry import mapping
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -31,6 +33,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+REDIS_HOST = '217.194.133.140'
+REDIS_PORT = 6379
+REDIS_USERNAME = 'default'
+REDIS_PASSWORD = 'Gb1Ettbt6opgUCzuJXyQqp683lywkBml'
+redis = Redis(
+    host=REDIS_HOST, port=REDIS_PORT, ssl=False,
+    username=REDIS_USERNAME, password=REDIS_PASSWORD,
+    encoding="utf-8", decode_responses=True
+)
+
 
 # 查询永久基本农田数据的类
 class PermanentBasicFarmlandSpider(AsyncClient):
@@ -45,6 +57,8 @@ class PermanentBasicFarmlandSpider(AsyncClient):
     PROXY_PASSWORD = "ckg7zjk8"
     # 批处理大小
     BATCH_SIZE = 100
+    # Redis标志，记录已完成的tile
+    COMPLETED_FLAG = 'completed_tiles'
 
     def __init__(self, geo_output: str, shp_output: str, n: int):
         """
@@ -69,6 +83,14 @@ class PermanentBasicFarmlandSpider(AsyncClient):
         self.feature_list: list[dict[str, Any]] = []
         self.feature: dict[str, Any] = []
 
+    async def mark_done(self, tile_id: str):
+        """将 tile 标记为已完成。返回 True=第一次写入，False=已存在。"""
+        return await redis.sadd(self.COMPLETED_FLAG, tile_id) == 1
+
+    async def is_done(self, tile_id: str) -> bool:
+        """查询 tile 是否已完成。"""
+        return await redis.sismember(self.COMPLETED_FLAG, tile_id)
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -84,10 +106,6 @@ class PermanentBasicFarmlandSpider(AsyncClient):
             HTTPError: 当HTTP请求失败时抛出
         """
         # HTTP请求配置
-
-
-
-
         form_data = {
             'queryMode': 'SpatialQuery',
             'queryParameters': {
@@ -122,12 +140,12 @@ class PermanentBasicFarmlandSpider(AsyncClient):
         response = await self.post(
             "https://yncx.mnr.gov.cn/dist-app-yn/map/queryResults.json",
             headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0",
-        },
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0",
+            },
             params={
-            "returnContent": "true",
-            'token': 'Whe67hpdoYaBsTRmdzFkEfWcUyHkFuwQOuKgXDHEOv2deNvj0VbufUWA2w0297kDBDa5T_1V6__VvI1lHY7_fMwl'
-        },
+                "returnContent": "true",
+                'token': 'Whe67hpdoYaBsTRmdzFkEfWcUyHkFuwQOuKgXDHEOv2deNvj0VbufUWA2w0297kDBDa5T_1V6__VvI1lHY7_fMwl'
+            },
             json=form_data
         )
         return response.raise_for_status().json().get('data', '')
@@ -143,6 +161,8 @@ class PermanentBasicFarmlandSpider(AsyncClient):
                 cipher_hex = cipher_hex[2:]
             content = sm2.CryptSM2(public_key="", private_key=self.SM2_PRIVATE_KEY, mode=1)
             content = json.loads(content.decrypt(bytes.fromhex(cipher_hex)).decode("utf-8"))
+            logger.info(f"api请求成功，数据量：{content.get('currentCount', 0)}")
+            print(content)
             record_sets = content.get('recordsets', [])
             for recordset in record_sets:
                 if not (feature_list := recordset.get('features')):
@@ -282,16 +302,21 @@ async def main():
     #     "+proj=aea +lat_1=25 +lat_2=47 +lat_0=0 "
     #     "+lon_0=105 +x_0=0 +y_0=0"
     # )
-    tiles = gpd.read_file("河南省.geojson")
-    bounds_list = [(row.get("tile_id", idx + 1), *row.geometry.bounds) for idx, row in tiles.iterrows()]
+    geo_d = Geod(ellps="GRS80")
+    tiles = gpd.read_file("province-geojson/河南省.geojson")
+    bounds_list = [(row.get("tile_id", idx + 1), *row.geometry.bounds, abs(
+        geo_d.geometry_area_perimeter(row.geometry)[0]
+    ) / 666.67) for idx, row in tiles.iterrows()]
     # tiles = gpd.read_file("province-geojson/河南省-0_1.geojson").to_crs(crs_aea)
-    geo_output, shp_output = '', ''
+    geo_output, shp_output = '河南省.geojson', ''
     async with PermanentBasicFarmlandSpider(geo_output, shp_output, 1000) as spider:
-        for tile_id, x1, y1, x2, y2 in bounds_list:
-            print(f"开始查询区域: ({x1}, {y1}) - ({x2}, {y2}) 的永久基本农田数据...")
+        for tile_id, x1, y1, x2, y2, area in bounds_list:
+            if await spider.is_done(tile_id):
+                logger.info(f"Tile {tile_id} 已完成，跳过查询")
+                continue
+            print(f"开始查询区域: ({x1}, {y1}) - ({x2}, {y2}) 面积为: {area:.4f} 亩的永久基本农田数据...")
             await spider.fetch_features_geojson()
-            if tile_id >= 10:
-                break
+            # await spider.mark_done(tile_id)
         spider.download_geojson(geo_output)
         spider.convert_geojson_to_shapefile()
         logger.info("处理完成")

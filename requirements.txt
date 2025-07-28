@@ -1,9 +1,0 @@
-fiona
-shapely
-httpx
-tenacity
-gmssl
-geopandas
-geopy
-numpy
-pyproj~=3.7.1

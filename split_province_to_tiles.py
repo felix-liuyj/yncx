@@ -39,14 +39,14 @@ def generate_tiles_for_province(shp_path: Path, tile_size_deg: float = 0.005):
 
     print(f"交集 tile 数量: {len(intersected)}")
     # 输出路径：省目录下
-    output_path = shp_path.parent.parent.parent / f"{province_name}.geojson"
+    output_path = shp_path.parent.parent.parent / 'province-geojson' / f"{province_name}{str(tile_size_deg).replace(".", "")}.geojson"
     intersected.to_file(output_path, driver="GeoJSON", encoding="utf-8")
     print(f"✅ {province_name} 已生成 tile 数量: {len(intersected)}\n")
 
 
 def main():
     base_dir = Path("province-epsg-4490")
-    tile_size = 0.05  # 每个 tile 是 0.5 x 0.5 度
+    tile_size = 0.01  # 每个 tile 是 0.5 x 0.5 度
 
     try:
         generate_tiles_for_province(base_dir / '河南省' / '河南省.shp', tile_size_deg=tile_size)
